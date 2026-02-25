@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
   GameState, 
+  GameMode,
   Player, 
   Enemy, 
   Bullet, 
@@ -21,24 +22,29 @@ import {
   ENEMY_CONFIGS,
   POWERUP_WIDTH,
   POWERUP_HEIGHT,
-  POWERUP_SPEED
+  POWERUP_SPEED,
+  ASSETS
 } from '../constants';
 
 interface GameCanvasProps {
   gameState: GameState;
+  gameMode: GameMode;
   onGameOver: () => void;
   onScoreChange: (score: number) => void;
   onLevelChange: (level: number) => void;
   onHealthChange: (health: number) => void;
+  onTimeChange: (time: number) => void;
   onUnlockAchievement: (id: string) => void;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({
   gameState,
+  gameMode,
   onGameOver,
   onScoreChange,
   onLevelChange,
   onHealthChange,
+  onTimeChange,
   onUnlockAchievement
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,6 +79,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const lastEnemySpawnTimeRef = useRef<number>(0);
   const lastPowerUpSpawnTimeRef = useRef<number>(0);
   const enemiesDestroyedRef = useRef<number>(0);
+  const timeLeftRef = useRef<number>(60);
+  const lastTimeUpdateRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
@@ -81,10 +89,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     const loadImages = async () => {
       const sources = {
-        player: '/assets/player.png',
-        BASIC: '/assets/enemy_basic.png',
-        FAST: '/assets/enemy_fast.png',
-        HEAVY: '/assets/enemy_heavy.png',
+        player: ASSETS.PLAYER,
+        BASIC: ASSETS.ENEMY_BASIC,
+        FAST: ASSETS.ENEMY_FAST,
+        HEAVY: ASSETS.ENEMY_HEAVY,
       };
 
       for (const [key, src] of Object.entries(sources)) {
@@ -93,7 +101,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         img.onload = () => {
           imagesRef.current[key] = img;
         };
-        // We don't await here to let the game start even if images fail to load
       }
     };
     loadImages();
@@ -152,7 +159,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     if (gameState === 'PLAYING') {
       if (!bgMusicRef.current) {
-        bgMusicRef.current = new Audio('https://assets.mixkit.co/music/preview/mixkit-deep-space-82.mp3');
+        // Using a more whimsical/orchestral track for Ghibli feel
+        bgMusicRef.current = new Audio('https://assets.mixkit.co/music/preview/mixkit-dreaming-big-31.mp3');
         bgMusicRef.current.loop = true;
         bgMusicRef.current.volume = 0.3;
       }
@@ -165,10 +173,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, [gameState]);
 
-  // Input Handlers
+  // Input Handlers (Keyboard)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysRef.current[e.code] = true;
+      // Prevent scrolling with arrow keys
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+        e.preventDefault();
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysRef.current[e.code] = false;
@@ -182,34 +194,53 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, []);
 
-  // Touch Handlers
+  // Mouse & Touch Handlers
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const handleTouch = (e: TouchEvent) => {
+    const handleMove = (clientX: number, clientY: number) => {
       if (gameState !== 'PLAYING') return;
-      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
-      const touch = e.touches[0];
-      const x = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
-      const y = (touch.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
       
-      // Move player towards touch
+      // Calculate coordinates relative to canvas scale
+      const scaleX = CANVAS_WIDTH / rect.width;
+      const scaleY = CANVAS_HEIGHT / rect.height;
+      
+      const x = (clientX - rect.left) * scaleX;
+      const y = (clientY - rect.top) * scaleY;
+      
       playerRef.current.x = Math.max(0, Math.min(CANVAS_WIDTH - playerRef.current.width, x - playerRef.current.width / 2));
       playerRef.current.y = Math.max(0, Math.min(CANVAS_HEIGHT - playerRef.current.height, y - playerRef.current.height / 2));
     };
 
-    canvas.addEventListener('touchmove', handleTouch, { passive: false });
-    canvas.addEventListener('touchstart', handleTouch, { passive: false });
+    const onMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        handleMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    // Use window for mouse move to capture movement even if slightly outside canvas
+    window.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    canvas.addEventListener('touchstart', onTouchMove, { passive: false });
+
     return () => {
-      canvas.removeEventListener('touchmove', handleTouch);
-      canvas.removeEventListener('touchstart', handleTouch);
+      window.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchstart', onTouchMove);
     };
   }, [gameState]);
 
   // Reset Game
   useEffect(() => {
+    if (gameState === 'PLAYING') {
+      // Auto-focus window to ensure keyboard events are captured
+      window.focus();
+      timeLeftRef.current = 60;
+      lastTimeUpdateRef.current = performance.now();
+    }
     if (gameState === 'PLAYING' && playerRef.current.health <= 0) {
       playerRef.current = {
         id: 'player',
@@ -240,16 +271,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const createExplosion = (x: number, y: number, color: string, count = 15) => {
     playSound('explosion');
     for (let i = 0; i < count; i++) {
+      // Petal-like particles
       particlesRef.current.push({
         id: Math.random().toString(),
         x,
         y,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6,
+        vx: (Math.random() - 0.5) * 4,
+        vy: (Math.random() - 0.5) * 4,
         life: 1,
-        maxLife: 0.5 + Math.random() * 0.5,
-        color,
-        size: 2 + Math.random() * 3
+        maxLife: 0.8 + Math.random() * 0.4,
+        color: Math.random() > 0.5 ? '#fff' : color,
+        size: 3 + Math.random() * 4
       });
     }
   };
@@ -303,6 +335,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const update = useCallback((time: number) => {
     if (gameState !== 'PLAYING') return;
+
+    // Handle Time Limit
+    if (gameMode === 'TIME_LIMIT') {
+      const delta = (time - lastTimeUpdateRef.current) / 1000;
+      timeLeftRef.current -= delta;
+      lastTimeUpdateRef.current = time;
+      onTimeChange(timeLeftRef.current);
+      
+      if (timeLeftRef.current <= 0) {
+        onGameOver();
+        return;
+      }
+    }
 
     const player = playerRef.current;
 

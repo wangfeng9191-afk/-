@@ -1,4 +1,5 @@
 export type GameState = 'START' | 'PLAYING' | 'PAUSED' | 'GAMEOVER';
+export type GameMode = 'LEVEL' | 'TIME_LIMIT';
 
 export interface Point {
   x: number;
