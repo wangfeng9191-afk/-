@@ -42,7 +42,7 @@ export interface Bullet extends Entity {
   angle: number;
 }
 
-export type PowerUpType = 'TRIPLE_SHOT' | 'SHIELD';
+export type PowerUpType = 'TRIPLE_SHOT' | 'SHIELD' | 'HEALTH';
 
 export interface PowerUp extends Entity {
   type: PowerUpType;

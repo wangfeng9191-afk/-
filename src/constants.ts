@@ -44,10 +44,10 @@ export const POWERUP_HEIGHT = 30;
 export const POWERUP_SPEED = 1.5;
 
 export const ASSETS = {
-  PLAYER: '/assets/player.png',
-  ENEMY_BASIC: '/assets/enemy_basic.png',
-  ENEMY_FAST: '/assets/enemy_fast.png',
-  ENEMY_HEAVY: '/assets/enemy_heavy.png',
+  PLAYER: 'https://raw.githubusercontent.com/wangfeng9191-afk/piciure/8df782431b402a73174b9b9ae43731494a8b5bfd/player.png',
+  ENEMY_BASIC: 'https://raw.githubusercontent.com/wangfeng9191-afk/piciure/8df782431b402a73174b9b9ae43731494a8b5bfd/enemy_basic.png',
+  ENEMY_FAST: 'https://raw.githubusercontent.com/wangfeng9191-afk/piciure/8df782431b402a73174b9b9ae43731494a8b5bfd/enemy_fast.png',
+  ENEMY_HEAVY: 'https://raw.githubusercontent.com/wangfeng9191-afk/piciure/8df782431b402a73174b9b9ae43731494a8b5bfd/enemy_heavy.png',
 };
 
 export const INITIAL_ACHIEVEMENTS = [

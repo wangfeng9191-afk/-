@@ -317,7 +317,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const spawnPowerUp = useCallback((time: number) => {
     if (time - lastPowerUpSpawnTimeRef.current > 15000) { // Every 15 seconds
-      const types: PowerUpType[] = ['TRIPLE_SHOT', 'SHIELD'];
+      const types: PowerUpType[] = ['TRIPLE_SHOT', 'SHIELD', 'HEALTH'];
       const type = types[Math.floor(Math.random() * types.length)];
       
       powerUpsRef.current.push({
@@ -444,12 +444,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         playSound('powerup');
         if (p.type === 'TRIPLE_SHOT') player.powerUps.tripleShot = 600; // 10 seconds
         if (p.type === 'SHIELD') player.powerUps.shield = true;
+        if (p.type === 'HEALTH') {
+          player.health = Math.min(player.maxHealth, player.health + 1);
+          onHealthChange(player.health);
+        }
         
         if (player.powerUps.tripleShot > 0 && player.powerUps.shield) {
           onUnlockAchievement('power_hungry');
         }
         
-        createExplosion(p.x + p.width / 2, p.y + p.height / 2, p.type === 'TRIPLE_SHOT' ? '#fbbf24' : '#60a5fa', 10);
+        const explosionColor = p.type === 'TRIPLE_SHOT' ? '#fbbf24' : (p.type === 'SHIELD' ? '#60a5fa' : '#ef4444');
+        createExplosion(p.x + p.width / 2, p.y + p.height / 2, explosionColor, 10);
         return false;
       }
       return p.y < CANVAS_HEIGHT;
@@ -562,7 +567,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Draw PowerUps
     powerUpsRef.current.forEach(p => {
-      ctx.fillStyle = p.type === 'TRIPLE_SHOT' ? '#fbbf24' : '#60a5fa';
+      if (p.type === 'HEALTH') {
+        ctx.fillStyle = '#ef4444';
+      } else {
+        ctx.fillStyle = p.type === 'TRIPLE_SHOT' ? '#fbbf24' : '#60a5fa';
+      }
       ctx.shadowBlur = 20;
       ctx.shadowColor = ctx.fillStyle;
       
@@ -574,7 +583,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(p.type === 'TRIPLE_SHOT' ? '3' : 'S', p.x + p.width / 2, p.y + p.height / 2 + 4);
+      let icon = 'S';
+      if (p.type === 'TRIPLE_SHOT') icon = '3';
+      if (p.type === 'HEALTH') icon = '+';
+      ctx.fillText(icon, p.x + p.width / 2, p.y + p.height / 2 + 4);
       
       ctx.shadowBlur = 0;
     });
